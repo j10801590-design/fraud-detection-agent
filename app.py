@@ -16,20 +16,31 @@ st.markdown("""
     h1 {
         color: #ffffff;
         font-weight: 800;
+        letter-spacing: -0.5px;
         padding-bottom: 0px;
     }
     h2, h3 {
         color: #e6e6e6;
         font-weight: 600;
     }
+    p, .stMarkdown {
+        color: #c9ccd1;
+    }
+    [data-testid="stSidebar"] {
+        background-color: #131722;
+        border-right: 1px solid #2d3140;
+    }
     [data-testid="stMetric"] {
         background-color: #1a1d27;
         border: 1px solid #2d3140;
         border-radius: 12px;
-        padding: 16px;
+        padding: 18px;
     }
     [data-testid="stMetricLabel"] {
         color: #9ca3af;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     [data-testid="stMetricValue"] {
         color: #ffffff;
@@ -38,17 +49,49 @@ st.markdown("""
     .stDataFrame {
         border-radius: 10px;
         overflow: hidden;
+        border: 1px solid #2d3140;
     }
     [data-testid="stFileUploader"] {
         border: 2px dashed #3b82f6;
         border-radius: 12px;
         padding: 10px;
+        background-color: #131722;
     }
     div[data-testid="stAlert"] {
         border-radius: 10px;
     }
+    .stButton button {
+        background-color: #1a1d27;
+        color: #ffffff;
+        border: 1px solid #3b82f6;
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 8px 20px;
+    }
+    .stButton button:hover {
+        background-color: #3b82f6;
+        border: 1px solid #3b82f6;
+    }
+    [data-testid="stTabs"] button {
+        font-weight: 600;
+    }
+    [data-testid="stContainer"] {
+        border-radius: 10px;
+    }
+    hr {
+        border-color: #2d3140;
+    }
     </style>
 """, unsafe_allow_html=True)
+with st.sidebar:
+    st.markdown("## 🛡️ Fraud Agent")
+    st.markdown("Simulated transaction risk analysis for demonstration purposes.")
+    st.markdown("---")
+    st.markdown("**How it works**")
+    st.markdown("- Upload a CSV, or try sample data\n- Rule-based engine flags known patterns\n- ML model scores real transaction data\n- Review and export findings")
+    st.markdown("---")
+    st.caption("Built with Streamlit, pandas, and scikit-learn.")
+    
 
 st.title("AI Transaction Risk & Fraud Investigation Agent")
 st.write("This dashboard uses simulated transaction data for demonstration purposes only.")
