@@ -4,10 +4,6 @@ A Streamlit web app that helps a (simulated) bank fraud analyst identify, score,
 
 > **Note:** This project uses simulated/sample transaction data only. No real financial or customer data is used or represented. Flagged transactions are for demonstration purposes only and are never presented as real fraud cases.
 
-## Screenshots
-
-![Dashboard](screenshots/dashboard.png)
-
 ## Features
 
 - Loads transaction data from CSV
@@ -26,22 +22,26 @@ A Streamlit web app that helps a (simulated) bank fraud analyst identify, score,
 ## How to Run Locally
 
 1. Clone this repo:
+```
 git clone https://github.com/j10801590-design/fraud-detection-agent.git
 cd fraud-detection-agent
+```
 
 2. Create and activate a virtual environment:
-
+```
 python -m venv venv
 venv\Scripts\activate
+```
 
 3. Install dependencies:
-
+```
 pip install -r requirements.txt
+```
 
 4. Run the app:
-
+```
 streamlit run app.py
-
+```
 
 ## Roadmap
 
