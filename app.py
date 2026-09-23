@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import joblib
 
 st.title("AI Transaction Risk & Fraud Investigation Agent")
 st.write("This dashboard uses simulated transaction data for demonstration purposes only.")
@@ -15,7 +16,7 @@ if uploaded_file is not None:
 else:
     df = pd.read_csv("sample_transactions.csv")
     st.info("No file uploaded — showing sample data.")
-    
+
 
 # --- Rule-based flagging logic ---
 def evaluate_transaction(row):
@@ -40,7 +41,6 @@ def evaluate_transaction(row):
 
     return pd.Series([reasons, score])
 
-df[["flag_reasons", "risk_score"]] = df.apply(evaluate_transaction, axis=1)
 
 def score_to_level(score):
     if score >= 50:
@@ -50,79 +50,106 @@ def score_to_level(score):
     else:
         return "Low"
 
-df["risk_level"] = df["risk_score"].apply(score_to_level)
 
-# --- Dashboard summary section ---
-st.subheader("Summary")
+# Check if this data matches our rule-based engine's expected format
+rule_based_columns = {"amount", "merchant", "hour"}
+has_rule_columns = rule_based_columns.issubset(df.columns)
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Total Transactions", len(df))
-col2.metric("High Risk", (df["risk_level"] == "High").sum())
-col3.metric("Medium Risk", (df["risk_level"] == "Medium").sum())
-col4.metric("Low Risk", (df["risk_level"] == "Low").sum())
+# --- Everything rule-based lives inside this block now ---
+if has_rule_columns:
+    df[["flag_reasons", "risk_score"]] = df.apply(evaluate_transaction, axis=1)
+    df["risk_level"] = df["risk_score"].apply(score_to_level)
 
-st.subheader("Risk Level Breakdown")
-risk_counts = df["risk_level"].value_counts()
-st.bar_chart(risk_counts)
+    # --- Dashboard summary section ---
+    st.subheader("Summary")
 
-st.subheader("All Transactions")
-st.dataframe(df)
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Transactions", len(df))
+    col2.metric("High Risk", (df["risk_level"] == "High").sum())
+    col3.metric("Medium Risk", (df["risk_level"] == "Medium").sum())
+    col4.metric("Low Risk", (df["risk_level"] == "Low").sum())
 
-# --- NEW: Analyst review section ---
-st.subheader("Investigate Flagged Transactions")
+    st.subheader("Risk Level Breakdown")
+    risk_counts = df["risk_level"].value_counts()
+    st.bar_chart(risk_counts)
 
-# st.session_state is a special dictionary Streamlit gives us that
-# PERSISTS across reruns (normally, every click/interaction wipes
-# out regular variables and reruns the whole script from top to bottom).
-# We use it here to remember each transaction's review status even
-# as the page re-runs when you interact with a dropdown.
+    st.subheader("All Transactions")
+    st.dataframe(df)
 
-# "if X not in st.session_state" means "only set this up ONCE,
-# the first time the app runs — don't reset it every rerun."
-if "review_status" not in st.session_state:
-    # Create a dictionary like {1: "Not Reviewed", 2: "Not Reviewed", ...}
-    # one entry per transaction_id, all starting as "Not Reviewed"
-    st.session_state.review_status = {
-        txn_id: "Not Reviewed" for txn_id in df["transaction_id"]
-    }
+    # --- Analyst review section ---
+    st.subheader("Investigate Flagged Transactions")
 
-# Only show flagged (Medium/High) transactions for review
-flagged_df = df[df["risk_level"] != "Low"]
+    if "review_status" not in st.session_state:
+        st.session_state.review_status = {
+            txn_id: "Not Reviewed" for txn_id in df["transaction_id"]
+        }
 
-# Loop through each flagged transaction one at a time
-for _, row in flagged_df.iterrows():
-    with st.container(border=True):
-        st.write(f"**Transaction #{row['transaction_id']}** — {row['merchant']}")
-        st.write(f"Amount: ${row['amount']:.2f} | Hour: {row['hour']} | Risk: {row['risk_level']} (score: {row['risk_score']})")
-        st.write(f"Reasons: {', '.join(row['flag_reasons'])}")
+    flagged_df = df[df["risk_level"] != "Low"]
 
-        # A dropdown for the analyst to set the review status.
-        # key=... gives this specific dropdown a unique name so Streamlit
-        # doesn't confuse it with the other transactions' dropdowns.
-        selected_status = st.selectbox(
-            "Review status",
-            options=["Not Reviewed", "Confirmed Fraud", "False Positive"],
-            index=["Not Reviewed", "Confirmed Fraud", "False Positive"].index(
-                st.session_state.review_status[row["transaction_id"]]
-            ),
-            key=f"status_{row['transaction_id']}"
-        )
+    for _, row in flagged_df.iterrows():
+        with st.container(border=True):
+            st.write(f"**Transaction #{row['transaction_id']}** — {row['merchant']}")
+            st.write(f"Amount: ${row['amount']:.2f} | Hour: {row['hour']} | Risk: {row['risk_level']} (score: {row['risk_score']})")
+            st.write(f"Reasons: {', '.join(row['flag_reasons'])}")
 
-        # Save whatever the analyst picked back into session_state
-        st.session_state.review_status[row["transaction_id"]] = selected_status
-        # --- NEW: Export report ---
-st.subheader("Export Report")
+            selected_status = st.selectbox(
+                "Review status",
+                options=["Not Reviewed", "Confirmed Fraud", "False Positive"],
+                index=["Not Reviewed", "Confirmed Fraud", "False Positive"].index(
+                    st.session_state.review_status[row["transaction_id"]]
+                ),
+                key=f"status_{row['transaction_id']}"
+            )
 
-# Build a copy of flagged_df that includes the review status
-export_df = flagged_df.copy()
-export_df["review_status"] = export_df["transaction_id"].map(st.session_state.review_status)
+            st.session_state.review_status[row["transaction_id"]] = selected_status
 
-# Convert the DataFrame to CSV text (in memory, not saved to disk)
-csv_data = export_df.to_csv(index=False)
+    # --- Export report ---
+    st.subheader("Export Report")
 
-st.download_button(
-    label="Download Flagged Transactions Report (CSV)",
-    data=csv_data,
-    file_name="flagged_transactions_report.csv",
-    mime="text/csv"
-)
+    export_df = flagged_df.copy()
+    export_df["review_status"] = export_df["transaction_id"].map(st.session_state.review_status)
+    csv_data = export_df.to_csv(index=False)
+
+    st.download_button(
+        label="Download Flagged Transactions Report (CSV)",
+        data=csv_data,
+        file_name="flagged_transactions_report.csv",
+        mime="text/csv"
+    )
+
+else:
+    st.warning("This file doesn't match the rule-based engine's expected format (amount, merchant, hour columns). Rule-based detection skipped for this file — see ML section below instead.")
+
+
+# --- ML-based fraud detection (real dataset format only) ---
+st.subheader("Machine Learning Fraud Detection")
+
+expected_columns = [f"V{i}" for i in range(1, 29)] + ["Time", "Amount"]
+has_ml_columns = all(col in df.columns for col in expected_columns)
+
+if has_ml_columns:
+    model = joblib.load("fraud_model.pkl")
+    scaler = joblib.load("fraud_scaler.pkl")
+
+    X = df.drop(columns=["Class"], errors="ignore")
+    X_scaled = scaler.transform(X)
+
+    predictions = model.predict(X_scaled)
+    fraud_probabilities = model.predict_proba(X_scaled)[:, 1]
+
+    df["ml_prediction"] = predictions
+    df["ml_fraud_probability"] = fraud_probabilities
+
+    ml_flagged = df[df["ml_prediction"] == 1]
+
+    st.success(f"ML model ran on {len(df)} transactions.")
+    col1, col2 = st.columns(2)
+    col1.metric("Flagged by ML Model", len(ml_flagged))
+    col2.metric("Total Transactions", len(df))
+
+    st.write("Transactions flagged by the ML model:")
+    st.dataframe(ml_flagged)
+
+else:
+    st.info("Upload a file with the real dataset's columns (Time, V1–V28, Amount) to run ML-based detection. The current data uses a different format, so only rule-based detection applies above.")
+    
