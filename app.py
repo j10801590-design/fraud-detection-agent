@@ -4,8 +4,18 @@ import pandas as pd
 st.title("AI Transaction Risk & Fraud Investigation Agent")
 st.write("This dashboard uses simulated transaction data for demonstration purposes only.")
 
-# Load the CSV file
-df = pd.read_csv("sample_transactions.csv")
+# --- Load data: uploaded file, or fall back to sample data ---
+st.subheader("Load Transaction Data")
+
+uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    st.success("Loaded your uploaded file.")
+else:
+    df = pd.read_csv("sample_transactions.csv")
+    st.info("No file uploaded — showing sample data.")
+    
 
 # --- Rule-based flagging logic ---
 def evaluate_transaction(row):

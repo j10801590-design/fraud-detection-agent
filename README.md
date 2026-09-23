@@ -45,7 +45,7 @@ streamlit run app.py
 
 ## Roadmap
 
-- [ ] Let analysts upload their own CSV files
+- [x] Let analysts upload their own CSV files
 - [ ] Swap in a larger, real public fraud dataset (e.g., Kaggle Credit Card Fraud Detection) for realistic-scale evaluation
 - [ ] Add a scikit-learn machine learning model alongside the rule-based engine
 - [ ] Simulate live transaction events (webhook-style) so new transactions can appear in real time
