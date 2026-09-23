@@ -2,6 +2,54 @@ import streamlit as st
 import pandas as pd
 import joblib
 
+st.set_page_config(
+    page_title="Fraud Investigation Agent",
+    page_icon="🛡️",
+    layout="wide"
+)
+
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #0e1117;
+    }
+    h1 {
+        color: #ffffff;
+        font-weight: 800;
+        padding-bottom: 0px;
+    }
+    h2, h3 {
+        color: #e6e6e6;
+        font-weight: 600;
+    }
+    [data-testid="stMetric"] {
+        background-color: #1a1d27;
+        border: 1px solid #2d3140;
+        border-radius: 12px;
+        padding: 16px;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #9ca3af;
+    }
+    [data-testid="stMetricValue"] {
+        color: #ffffff;
+        font-weight: 700;
+    }
+    .stDataFrame {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    [data-testid="stFileUploader"] {
+        border: 2px dashed #3b82f6;
+        border-radius: 12px;
+        padding: 10px;
+    }
+    div[data-testid="stAlert"] {
+        border-radius: 10px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("AI Transaction Risk & Fraud Investigation Agent")
 st.write("This dashboard uses simulated transaction data for demonstration purposes only.")
 
@@ -10,7 +58,6 @@ st.subheader("Load Transaction Data")
 
 uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
 
-# Let the analyst optionally load sample data instead of uploading
 use_sample = st.button("Or try it with sample data")
 
 if uploaded_file is not None:
@@ -21,7 +68,7 @@ elif use_sample:
     st.info("Showing sample data.")
 else:
     st.info("Upload a CSV file above to get started, or click the button to try sample data.")
-    st.stop()  # Halts the app here — nothing below this runs until data is loaded
+    st.stop()
 
 
 # --- Rule-based flagging logic ---
@@ -57,16 +104,30 @@ def score_to_level(score):
         return "Low"
 
 
+def highlight_risk(val):
+    if val == "High":
+        return "background-color: #3b0d0d; color: #ff6b6b; font-weight: 600;"
+    elif val == "Medium":
+        return "background-color: #3b2e0d; color: #ffd166; font-weight: 600;"
+    elif val == "Low":
+        return "background-color: #0d3b1a; color: #6bff8f; font-weight: 600;"
+    return ""
+
+
+def highlight_fraud(val):
+    if val == 1:
+        return "background-color: #3b0d0d; color: #ff6b6b; font-weight: 600;"
+    return ""
+
+
 # Check if this data matches our rule-based engine's expected format
 rule_based_columns = {"amount", "merchant", "hour"}
 has_rule_columns = rule_based_columns.issubset(df.columns)
 
-# --- Everything rule-based lives inside this block now ---
 if has_rule_columns:
     df[["flag_reasons", "risk_score"]] = df.apply(evaluate_transaction, axis=1)
     df["risk_level"] = df["risk_score"].apply(score_to_level)
 
-    # --- Dashboard summary section ---
     st.subheader("Summary")
 
     col1, col2, col3, col4 = st.columns(4)
@@ -80,7 +141,8 @@ if has_rule_columns:
     st.bar_chart(risk_counts)
 
     st.subheader("All Transactions")
-    st.dataframe(df)
+    styled_df = df.style.map(highlight_risk, subset=["risk_level"])
+    st.dataframe(styled_df)
 
     # --- Analyst review section ---
     st.subheader("Investigate Flagged Transactions")
@@ -154,8 +216,8 @@ if has_ml_columns:
     col2.metric("Total Transactions", len(df))
 
     st.write("Transactions flagged by the ML model:")
-    st.dataframe(ml_flagged)
+    styled_ml = ml_flagged.style.map(highlight_fraud, subset=["ml_prediction"])
+    st.dataframe(styled_ml)
 
 else:
     st.info("Upload a file with the real dataset's columns (Time, V1–V28, Amount) to run ML-based detection. The current data uses a different format, so only rule-based detection applies above.")
-    
