@@ -1,0 +1,6 @@
+transaction_id,amount,merchant,category,hour,is_flagged
+1,45.20,Starbucks,Food,9,0
+2,1200.00,Best Buy,Electronics,2,1
+3,15.99,Netflix,Subscription,14,0
+4,3000.00,Unknown Wire Transfer,Transfer,3,1
+5,60.00,Shell Gas Station,Fuel,17,0
