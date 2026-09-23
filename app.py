@@ -10,12 +10,18 @@ st.subheader("Load Transaction Data")
 
 uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
 
+# Let the analyst optionally load sample data instead of uploading
+use_sample = st.button("Or try it with sample data")
+
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     st.success("Loaded your uploaded file.")
-else:
+elif use_sample:
     df = pd.read_csv("sample_transactions.csv")
-    st.info("No file uploaded — showing sample data.")
+    st.info("Showing sample data.")
+else:
+    st.info("Upload a CSV file above to get started, or click the button to try sample data.")
+    st.stop()  # Halts the app here — nothing below this runs until data is loaded
 
 
 # --- Rule-based flagging logic ---
