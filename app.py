@@ -175,7 +175,13 @@ def highlight_fraud_prob(val):
 rule_based_columns = {"amount", "merchant", "hour"}
 has_rule_columns = rule_based_columns.issubset(df.columns)
 
-if has_rule_columns:
+expected_columns = [f"V{i}" for i in range(1, 29)] + ["Time", "Amount"]
+has_ml_columns = all(col in df.columns for col in expected_columns)
+
+tab1, tab2 = st.tabs(["📋 Rule-Based Detection", "🤖 ML-Based Detection"])
+
+with tab1:
+    if has_rule_columns:
     df[["flag_reasons", "risk_score"]] = df.apply(evaluate_transaction, axis=1)
     df["risk_level"] = df["risk_score"].apply(score_to_level)
 
@@ -301,4 +307,3 @@ if has_ml_columns:
 
 else:
     st.info("Upload a file with the real dataset's columns (Time, V1–V28, Amount) to run ML-based detection. The current data uses a different format, so only rule-based detection applies above.")
-    
