@@ -83,6 +83,7 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
 with st.sidebar:
     st.markdown("## 🛡️ Fraud Agent")
     st.markdown("Simulated transaction risk analysis for demonstration purposes.")
@@ -91,7 +92,6 @@ with st.sidebar:
     st.markdown("- Upload a CSV, or try sample data\n- Rule-based engine flags known patterns\n- ML model scores real transaction data\n- Review and export findings")
     st.markdown("---")
     st.caption("Built with Streamlit, pandas, and scikit-learn.")
-    
 
 st.title("AI Transaction Risk & Fraud Investigation Agent")
 st.write("This dashboard uses simulated transaction data for demonstration purposes only.")
@@ -160,6 +160,14 @@ def highlight_risk(val):
 def highlight_fraud(val):
     if val == 1:
         return "background-color: #3b0d0d; color: #ff6b6b; font-weight: 600;"
+    return ""
+
+
+def highlight_fraud_prob(val):
+    if val >= 0.8:
+        return "background-color: #3b0d0d; color: #ff6b6b; font-weight: 600;"
+    elif val >= 0.5:
+        return "background-color: #3b2e0d; color: #ffd166; font-weight: 600;"
     return ""
 
 
@@ -251,6 +259,25 @@ if has_ml_columns:
     df["ml_prediction"] = predictions
     df["ml_fraud_probability"] = fraud_probabilities
 
+    # --- Plain-English explanation of WHY the model flagged each transaction ---
+    coefficients = model.coef_[0]
+    feature_names = X.columns
+
+    def explain_prediction(row_index):
+        row_values = X_scaled[row_index]
+        contributions = coefficients * row_values
+        top_indices = contributions.argsort()[::-1][:3]
+        top_features = [feature_names[i] for i in top_indices if contributions[i] > 0]
+
+        if not top_features:
+            return "No strongly suspicious individual features — flagged due to a subtle combined pattern."
+
+        return f"Flagged primarily due to unusual values in: {', '.join(top_features)} (statistical pattern consistent with known fraud cases in training data)."
+
+    df_reset = df.reset_index(drop=True)
+    explanations = [explain_prediction(i) for i in range(len(df_reset))]
+    df["ml_explanation"] = explanations
+
     ml_flagged = df[df["ml_prediction"] == 1]
 
     st.success(f"ML model ran on {len(df)} transactions.")
@@ -259,8 +286,19 @@ if has_ml_columns:
     col2.metric("Total Transactions", len(df))
 
     st.write("Transactions flagged by the ML model:")
-    styled_ml = ml_flagged.style.map(highlight_fraud, subset=["ml_prediction"])
-    st.dataframe(styled_ml)
+
+    for idx, row in ml_flagged.head(20).iterrows():
+        with st.container(border=True):
+            st.write(f"**Transaction (row {idx})** — Fraud probability: {row['ml_fraud_probability']:.1%}")
+            st.write(row["ml_explanation"])
+
+    if len(ml_flagged) > 20:
+        st.caption(f"Showing first 20 of {len(ml_flagged)} flagged transactions. Full data available in the table below.")
+
+    display_columns = ["Amount", "ml_fraud_probability", "ml_explanation"]
+    styled_ml = ml_flagged[display_columns].style.map(highlight_fraud_prob, subset=["ml_fraud_probability"])
+    st.dataframe(styled_ml, use_container_width=True)
 
 else:
     st.info("Upload a file with the real dataset's columns (Time, V1–V28, Amount) to run ML-based detection. The current data uses a different format, so only rule-based detection applies above.")
+    
