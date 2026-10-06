@@ -101,17 +101,19 @@ st.subheader("Load Transaction Data")
 
 uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
 
-use_sample = st.button("Or try it with sample data")
+if st.button("Or try it with sample data"):
+    st.session_state.use_sample = True
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     st.success("Loaded your uploaded file.")
-elif use_sample:
+elif st.session_state.get("use_sample", False):
     df = pd.read_csv("sample_transactions.csv")
     st.info("Showing sample data.")
 else:
     st.info("Upload a CSV file above to get started, or click the button to try sample data.")
     st.stop()
+    
 
 
 # --- Rule-based flagging logic ---
@@ -171,7 +173,7 @@ def highlight_fraud_prob(val):
     return ""
 
 
-# Check if this data matches our rule-based engine's expected format
+# Check if this data matches each engine's expected format
 rule_based_columns = {"amount", "merchant", "hour"}
 has_rule_columns = rule_based_columns.issubset(df.columns)
 
@@ -182,128 +184,125 @@ tab1, tab2 = st.tabs(["📋 Rule-Based Detection", "🤖 ML-Based Detection"])
 
 with tab1:
     if has_rule_columns:
-    df[["flag_reasons", "risk_score"]] = df.apply(evaluate_transaction, axis=1)
-    df["risk_level"] = df["risk_score"].apply(score_to_level)
+        df[["flag_reasons", "risk_score"]] = df.apply(evaluate_transaction, axis=1)
+        df["risk_level"] = df["risk_score"].apply(score_to_level)
 
-    st.subheader("Summary")
+        st.subheader("Summary")
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Transactions", len(df))
-    col2.metric("High Risk", (df["risk_level"] == "High").sum())
-    col3.metric("Medium Risk", (df["risk_level"] == "Medium").sum())
-    col4.metric("Low Risk", (df["risk_level"] == "Low").sum())
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Transactions", len(df))
+        col2.metric("High Risk", (df["risk_level"] == "High").sum())
+        col3.metric("Medium Risk", (df["risk_level"] == "Medium").sum())
+        col4.metric("Low Risk", (df["risk_level"] == "Low").sum())
 
-    st.subheader("Risk Level Breakdown")
-    risk_counts = df["risk_level"].value_counts()
-    st.bar_chart(risk_counts)
+        st.subheader("Risk Level Breakdown")
+        risk_counts = df["risk_level"].value_counts()
+        st.bar_chart(risk_counts)
 
-    st.subheader("All Transactions")
-    styled_df = df.style.map(highlight_risk, subset=["risk_level"])
-    st.dataframe(styled_df)
+        st.subheader("All Transactions")
+        styled_df = df.style.map(highlight_risk, subset=["risk_level"])
+        st.dataframe(styled_df)
 
-    # --- Analyst review section ---
-    st.subheader("Investigate Flagged Transactions")
+        # --- Analyst review section ---
+        st.subheader("Investigate Flagged Transactions")
 
-    if "review_status" not in st.session_state:
-        st.session_state.review_status = {
-            txn_id: "Not Reviewed" for txn_id in df["transaction_id"]
-        }
+        if "review_status" not in st.session_state:
+            st.session_state.review_status = {
+                txn_id: "Not Reviewed" for txn_id in df["transaction_id"]
+            }
 
-    flagged_df = df[df["risk_level"] != "Low"]
+        flagged_df = df[df["risk_level"] != "Low"]
 
-    for _, row in flagged_df.iterrows():
-        with st.container(border=True):
-            st.write(f"**Transaction #{row['transaction_id']}** — {row['merchant']}")
-            st.write(f"Amount: ${row['amount']:.2f} | Hour: {row['hour']} | Risk: {row['risk_level']} (score: {row['risk_score']})")
-            st.write(f"Reasons: {', '.join(row['flag_reasons'])}")
+        for _, row in flagged_df.iterrows():
+            with st.container(border=True):
+                st.write(f"**Transaction #{row['transaction_id']}** — {row['merchant']}")
+                st.write(f"Amount: ${row['amount']:.2f} | Hour: {row['hour']} | Risk: {row['risk_level']} (score: {row['risk_score']})")
+                st.write(f"Reasons: {', '.join(row['flag_reasons'])}")
 
-            selected_status = st.selectbox(
-                "Review status",
-                options=["Not Reviewed", "Confirmed Fraud", "False Positive"],
-                index=["Not Reviewed", "Confirmed Fraud", "False Positive"].index(
-                    st.session_state.review_status[row["transaction_id"]]
-                ),
-                key=f"status_{row['transaction_id']}"
-            )
+                selected_status = st.selectbox(
+                    "Review status",
+                    options=["Not Reviewed", "Confirmed Fraud", "False Positive"],
+                    index=["Not Reviewed", "Confirmed Fraud", "False Positive"].index(
+                        st.session_state.review_status[row["transaction_id"]]
+                    ),
+                    key=f"status_{row['transaction_id']}"
+                )
 
-            st.session_state.review_status[row["transaction_id"]] = selected_status
+                st.session_state.review_status[row["transaction_id"]] = selected_status
 
-    # --- Export report ---
-    st.subheader("Export Report")
+        # --- Export report ---
+        st.subheader("Export Report")
 
-    export_df = flagged_df.copy()
-    export_df["review_status"] = export_df["transaction_id"].map(st.session_state.review_status)
-    csv_data = export_df.to_csv(index=False)
+        export_df = flagged_df.copy()
+        export_df["review_status"] = export_df["transaction_id"].map(st.session_state.review_status)
+        csv_data = export_df.to_csv(index=False)
 
-    st.download_button(
-        label="Download Flagged Transactions Report (CSV)",
-        data=csv_data,
-        file_name="flagged_transactions_report.csv",
-        mime="text/csv"
-    )
+        st.download_button(
+            label="Download Flagged Transactions Report (CSV)",
+            data=csv_data,
+            file_name="flagged_transactions_report.csv",
+            mime="text/csv"
+        )
 
-else:
-    st.warning("This file doesn't match the rule-based engine's expected format (amount, merchant, hour columns). Rule-based detection skipped for this file — see ML section below instead.")
+    else:
+        st.warning("This file doesn't match the rule-based engine's expected format (amount, merchant, hour columns). Rule-based detection skipped for this file — see ML tab instead.")
 
 
-# --- ML-based fraud detection (real dataset format only) ---
-st.subheader("Machine Learning Fraud Detection")
+with tab2:
+    st.subheader("Machine Learning Fraud Detection")
 
-expected_columns = [f"V{i}" for i in range(1, 29)] + ["Time", "Amount"]
-has_ml_columns = all(col in df.columns for col in expected_columns)
+    if has_ml_columns:
+        model = joblib.load("fraud_model.pkl")
+        scaler = joblib.load("fraud_scaler.pkl")
 
-if has_ml_columns:
-    model = joblib.load("fraud_model.pkl")
-    scaler = joblib.load("fraud_scaler.pkl")
+        X = df.drop(columns=["Class"], errors="ignore")
+        X_scaled = scaler.transform(X)
 
-    X = df.drop(columns=["Class"], errors="ignore")
-    X_scaled = scaler.transform(X)
+        predictions = model.predict(X_scaled)
+        fraud_probabilities = model.predict_proba(X_scaled)[:, 1]
 
-    predictions = model.predict(X_scaled)
-    fraud_probabilities = model.predict_proba(X_scaled)[:, 1]
+        df["ml_prediction"] = predictions
+        df["ml_fraud_probability"] = fraud_probabilities
 
-    df["ml_prediction"] = predictions
-    df["ml_fraud_probability"] = fraud_probabilities
+        # --- Plain-English explanation of WHY the model flagged each transaction ---
+        coefficients = model.coef_[0]
+        feature_names = X.columns
 
-    # --- Plain-English explanation of WHY the model flagged each transaction ---
-    coefficients = model.coef_[0]
-    feature_names = X.columns
+        def explain_prediction(row_index):
+            row_values = X_scaled[row_index]
+            contributions = coefficients * row_values
+            top_indices = contributions.argsort()[::-1][:3]
+            top_features = [feature_names[i] for i in top_indices if contributions[i] > 0]
 
-    def explain_prediction(row_index):
-        row_values = X_scaled[row_index]
-        contributions = coefficients * row_values
-        top_indices = contributions.argsort()[::-1][:3]
-        top_features = [feature_names[i] for i in top_indices if contributions[i] > 0]
+            if not top_features:
+                return "No strongly suspicious individual features — flagged due to a subtle combined pattern."
 
-        if not top_features:
-            return "No strongly suspicious individual features — flagged due to a subtle combined pattern."
+            return f"Flagged primarily due to unusual values in: {', '.join(top_features)} (statistical pattern consistent with known fraud cases in training data)."
 
-        return f"Flagged primarily due to unusual values in: {', '.join(top_features)} (statistical pattern consistent with known fraud cases in training data)."
+        df_reset = df.reset_index(drop=True)
+        explanations = [explain_prediction(i) for i in range(len(df_reset))]
+        df["ml_explanation"] = explanations
 
-    df_reset = df.reset_index(drop=True)
-    explanations = [explain_prediction(i) for i in range(len(df_reset))]
-    df["ml_explanation"] = explanations
+        ml_flagged = df[df["ml_prediction"] == 1]
 
-    ml_flagged = df[df["ml_prediction"] == 1]
+        st.success(f"ML model ran on {len(df)} transactions.")
+        col1, col2 = st.columns(2)
+        col1.metric("Flagged by ML Model", len(ml_flagged))
+        col2.metric("Total Transactions", len(df))
 
-    st.success(f"ML model ran on {len(df)} transactions.")
-    col1, col2 = st.columns(2)
-    col1.metric("Flagged by ML Model", len(ml_flagged))
-    col2.metric("Total Transactions", len(df))
+        st.write("Transactions flagged by the ML model:")
 
-    st.write("Transactions flagged by the ML model:")
+        for idx, row in ml_flagged.head(20).iterrows():
+            with st.container(border=True):
+                st.write(f"**Transaction (row {idx})** — Fraud probability: {row['ml_fraud_probability']:.1%}")
+                st.write(row["ml_explanation"])
 
-    for idx, row in ml_flagged.head(20).iterrows():
-        with st.container(border=True):
-            st.write(f"**Transaction (row {idx})** — Fraud probability: {row['ml_fraud_probability']:.1%}")
-            st.write(row["ml_explanation"])
+        if len(ml_flagged) > 20:
+            st.caption(f"Showing first 20 of {len(ml_flagged)} flagged transactions. Full data available in the table below.")
 
-    if len(ml_flagged) > 20:
-        st.caption(f"Showing first 20 of {len(ml_flagged)} flagged transactions. Full data available in the table below.")
+        display_columns = ["Amount", "ml_fraud_probability", "ml_explanation"]
+        styled_ml = ml_flagged[display_columns].style.map(highlight_fraud_prob, subset=["ml_fraud_probability"])
+        st.dataframe(styled_ml, use_container_width=True)
 
-    display_columns = ["Amount", "ml_fraud_probability", "ml_explanation"]
-    styled_ml = ml_flagged[display_columns].style.map(highlight_fraud_prob, subset=["ml_fraud_probability"])
-    st.dataframe(styled_ml, use_container_width=True)
-
-else:
-    st.info("Upload a file with the real dataset's columns (Time, V1–V28, Amount) to run ML-based detection. The current data uses a different format, so only rule-based detection applies above.")
+    else:
+        st.info("Upload a file with the real dataset's columns (Time, V1–V28, Amount) to run ML-based detection. The current data uses a different format, so only rule-based detection applies in this tab.")
