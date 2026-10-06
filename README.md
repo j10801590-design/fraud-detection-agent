@@ -3,6 +3,8 @@
 A Streamlit web app that helps a (simulated) bank fraud analyst identify, score, and investigate suspicious transactions — from raw CSV data to a reviewable, exportable report.
 
 > **Note:** This project uses simulated/sample transaction data only. No real financial or customer data is used or represented. Flagged transactions are for demonstration purposes only and are never presented as real fraud cases.
+**🔗 Live demo:** https://fraud-investigation-agent.streamlit.app/
+
 
 ## Features
 
