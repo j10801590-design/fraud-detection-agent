@@ -6,7 +6,7 @@ import joblib
 
 RULE_SAMPLE_FILE = "sample_transactions.csv"
 ML_SAMPLE_FILE = "demo_creditcard_sample.csv"
-RECOMMENDED_THRESHOLD = 0.75
+RECOMMENDED_THRESHOLD = 0.95
 KAGGLE_URL = "https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud"
 
 st.set_page_config(
@@ -299,13 +299,13 @@ with tab2:
             key="threshold_slider"
         )
         if abs(threshold - RECOMMENDED_THRESHOLD) < 1e-9:
-            st.success("✅ Recommended setting (75%): a balance between catching fraud and limiting false alarms.")
+            st.success("✅ Recommended setting (95%): a balance between catching fraud and limiting false alarms.")
         else:
             st.warning(f"Custom setting ({threshold:.0%}). Recommended is {RECOMMENDED_THRESHOLD:.0%}.")
-            st.button("Reset to recommended (75%)", on_click=reset_threshold)
+            st.button("Reset to recommended (95%)", on_click=reset_threshold)
         st.caption(
             "Raise the threshold to cut false alarms (analysts review fewer cases), "
-            "lower it to catch more fraud. This app starts at 75%; the raw model on its own would use 50%."
+            "lower it to catch more fraud. This app starts at 95%; the raw model on its own would use 50%."
         )
 
         df["ml_fraud_probability"] = fraud_probabilities
