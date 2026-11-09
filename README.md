@@ -55,3 +55,21 @@ streamlit run app.py
 ## About This Project
 
 Built as a portfolio project to learn end-to-end app development: data processing, rule-based logic, interactive dashboards, and eventually machine learning — while keeping the code understandable and explainable.
+
+## Results
+
+The ML model is a logistic regression trained on the public Kaggle Credit Card Fraud dataset (284,807 transactions, 492 fraud cases). I tested it on 56,962 transactions it never saw during training (98 fraud cases).
+
+The app has an adjustable fraud-probability threshold, because lowering false alarms and catching more fraud pull in opposite directions:
+
+| Threshold | Fraud caught | False alarms |
+|-----------|--------------|--------------|
+| 50% (default) | 90 of 98 | 1,386 |
+| 75% | 88 of 98 | 539 |
+| 95% (app default) | 87 of 98 | 136 |
+
+I set 95% as the default because it cut false alarms by about 90% while missing only 3 more fraud cases. Analysts can change it with the slider depending on how many alerts they can review. With only 98 fraud cases in the test set, small differences are noisy.
+
+## Demo data
+
+The ML demo sample (`demo_creditcard_sample.csv`) has 2,000 transactions taken from the held-out test split, with fraud over-represented so the demo is easy to see. The full dataset is available on [Kaggle](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) (ULB Machine Learning Group / Worldline).
