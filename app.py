@@ -1,6 +1,13 @@
+import os
+import numpy as np
 import streamlit as st
 import pandas as pd
 import joblib
+
+RULE_SAMPLE_FILE = "sample_transactions.csv"
+ML_SAMPLE_FILE = "demo_creditcard_sample.csv"
+RECOMMENDED_THRESHOLD = 0.75
+KAGGLE_URL = "https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud"
 
 st.set_page_config(
     page_title="Fraud Investigation Agent",
@@ -60,7 +67,7 @@ st.markdown("""
     div[data-testid="stAlert"] {
         border-radius: 10px;
     }
-    .stButton button {
+    .stButton button, .stDownloadButton button {
         background-color: #1a1d27;
         color: #ffffff;
         border: 1px solid #3b82f6;
@@ -68,7 +75,7 @@ st.markdown("""
         font-weight: 600;
         padding: 8px 20px;
     }
-    .stButton button:hover {
+    .stButton button:hover, .stDownloadButton button:hover {
         background-color: #3b82f6;
         border: 1px solid #3b82f6;
     }
@@ -89,31 +96,54 @@ with st.sidebar:
     st.markdown("Simulated transaction risk analysis for demonstration purposes.")
     st.markdown("---")
     st.markdown("**How it works**")
-    st.markdown("- Upload a CSV, or try sample data\n- Rule-based engine flags known patterns\n- ML model scores real transaction data\n- Review and export findings")
+    st.markdown("- Upload a CSV, or try the sample data\n- Rule-based engine flags known patterns\n- ML model scores real transaction data\n- Review and export findings")
+    st.markdown("---")
+    st.markdown("**Test data**")
+    st.caption("Download these files, then upload them above to try the app yourself.")
+    for path, label in [
+        (RULE_SAMPLE_FILE, "Download rule-based sample (CSV)"),
+        (ML_SAMPLE_FILE, "Download ML demo sample (CSV)"),
+    ]:
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                st.download_button(label, f.read(), file_name=path, mime="text/csv", key=f"dl_{path}")
+    st.caption(
+        "ML demo sample: 2,000 transactions drawn from the held-out test split of the Kaggle "
+        "Credit Card Fraud Detection dataset (ULB Machine Learning Group / Worldline). "
+        "Fraud cases are over-represented so the demo is easy to see."
+    )
+    st.markdown(f"[Get the full Kaggle dataset]({KAGGLE_URL})")
     st.markdown("---")
     st.caption("Built with Streamlit, pandas, and scikit-learn.")
 
 st.title("AI Transaction Risk & Fraud Investigation Agent")
 st.write("This dashboard uses simulated transaction data for demonstration purposes only.")
 
-# --- Load data: uploaded file, or fall back to sample data ---
+# --- Load data: uploaded file, or one of the built-in samples ---
 st.subheader("Load Transaction Data")
 
 uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
 
-if st.button("Or try it with sample data"):
-    st.session_state.use_sample = True
+btn_col1, btn_col2 = st.columns(2)
+if btn_col1.button("Try rule-based sample data"):
+    st.session_state.sample_choice = "rule"
+if btn_col2.button("Try ML demo data"):
+    st.session_state.sample_choice = "ml"
+
+sample_choice = st.session_state.get("sample_choice")
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
-    st.success("Loaded your uploaded file.")
-elif st.session_state.get("use_sample", False):
-    df = pd.read_csv("sample_transactions.csv")
-    st.info("Showing sample data.")
+    st.success("Loaded your uploaded file. (Remove it with the X to use the sample buttons.)")
+elif sample_choice == "rule" and os.path.exists(RULE_SAMPLE_FILE):
+    df = pd.read_csv(RULE_SAMPLE_FILE)
+    st.info("Showing the rule-based sample data.")
+elif sample_choice == "ml" and os.path.exists(ML_SAMPLE_FILE):
+    df = pd.read_csv(ML_SAMPLE_FILE)
+    st.info("Showing the ML demo data (a 2,000-row sample of the Kaggle credit card fraud dataset).")
 else:
-    st.info("Upload a CSV file above to get started, or click the button to try sample data.")
+    st.info("Upload a CSV file above, or click one of the sample data buttons to get started.")
     st.stop()
-    
 
 
 # --- Rule-based flagging logic ---
@@ -156,12 +186,6 @@ def highlight_risk(val):
         return "background-color: #3b2e0d; color: #ffd166; font-weight: 600;"
     elif val == "Low":
         return "background-color: #0d3b1a; color: #6bff8f; font-weight: 600;"
-    return ""
-
-
-def highlight_fraud(val):
-    if val == 1:
-        return "background-color: #3b0d0d; color: #ff6b6b; font-weight: 600;"
     return ""
 
 
@@ -245,7 +269,7 @@ with tab1:
         )
 
     else:
-        st.warning("This file doesn't match the rule-based engine's expected format (amount, merchant, hour columns). Rule-based detection skipped for this file — see ML tab instead.")
+        st.info("This file isn't in the rule-based format (amount, merchant, hour columns), so this tab has nothing to show. Check the ML tab, or load the rule-based sample data.")
 
 
 with tab2:
@@ -258,19 +282,41 @@ with tab2:
         X = df.drop(columns=["Class"], errors="ignore")
         X_scaled = scaler.transform(X)
 
-        predictions = model.predict(X_scaled)
         fraud_probabilities = model.predict_proba(X_scaled)[:, 1]
 
-        df["ml_prediction"] = predictions
+        def reset_threshold():
+            st.session_state.threshold_slider = RECOMMENDED_THRESHOLD
+
+        # --- Threshold slider: how sure must the model be before flagging? ---
+        threshold = st.slider(
+            "Fraud probability threshold",
+            min_value=0.05,
+            max_value=0.99,
+            value=RECOMMENDED_THRESHOLD,
+            step=0.01,
+            help="Only transactions scored at or above this probability are flagged. "
+                 "Higher = fewer false alarms but more missed fraud.",
+            key="threshold_slider"
+        )
+        if abs(threshold - RECOMMENDED_THRESHOLD) < 1e-9:
+            st.success("✅ Recommended setting (75%): a balance between catching fraud and limiting false alarms.")
+        else:
+            st.warning(f"Custom setting ({threshold:.0%}). Recommended is {RECOMMENDED_THRESHOLD:.0%}.")
+            st.button("Reset to recommended (75%)", on_click=reset_threshold)
+        st.caption(
+            "Raise the threshold to cut false alarms (analysts review fewer cases), "
+            "lower it to catch more fraud. This app starts at 75%; the raw model on its own would use 50%."
+        )
+
         df["ml_fraud_probability"] = fraud_probabilities
+        df["ml_prediction"] = (fraud_probabilities >= threshold).astype(int)
 
-        # --- Plain-English explanation of WHY the model flagged each transaction ---
+        # --- Plain-English explanation of WHY the model flagged a transaction ---
         coefficients = model.coef_[0]
-        feature_names = X.columns
+        feature_names = list(X.columns)
 
-        def explain_prediction(row_index):
-            row_values = X_scaled[row_index]
-            contributions = coefficients * row_values
+        def explain_prediction(row_position):
+            contributions = coefficients * X_scaled[row_position]
             top_indices = contributions.argsort()[::-1][:3]
             top_features = [feature_names[i] for i in top_indices if contributions[i] > 0]
 
@@ -279,30 +325,49 @@ with tab2:
 
             return f"Flagged primarily due to unusual values in: {', '.join(top_features)} (statistical pattern consistent with known fraud cases in training data)."
 
-        df_reset = df.reset_index(drop=True)
-        explanations = [explain_prediction(i) for i in range(len(df_reset))]
-        df["ml_explanation"] = explanations
-
-        ml_flagged = df[df["ml_prediction"] == 1]
+        # Only explain the flagged rows (much faster than explaining every row)
+        flagged_positions = np.where(df["ml_prediction"].to_numpy() == 1)[0]
+        ml_flagged = df.iloc[flagged_positions].copy()
+        ml_flagged["ml_explanation"] = [explain_prediction(p) for p in flagged_positions]
+        # Highest-probability cases first, so analysts review the likeliest fraud first
+        ml_flagged = ml_flagged.sort_values("ml_fraud_probability", ascending=False)
 
         st.success(f"ML model ran on {len(df)} transactions.")
         col1, col2 = st.columns(2)
         col1.metric("Flagged by ML Model", len(ml_flagged))
         col2.metric("Total Transactions", len(df))
 
-        st.write("Transactions flagged by the ML model:")
+        # If the file includes the answer key (Class column), show how the model did
+        if "Class" in df.columns:
+            actual_fraud = int((df["Class"] == 1).sum())
+            caught = int(((df["Class"] == 1) & (df["ml_prediction"] == 1)).sum())
+            false_alarms = int(((df["Class"] == 0) & (df["ml_prediction"] == 1)).sum())
 
-        for idx, row in ml_flagged.head(20).iterrows():
-            with st.container(border=True):
-                st.write(f"**Transaction (row {idx})** — Fraud probability: {row['ml_fraud_probability']:.1%}")
-                st.write(row["ml_explanation"])
+            st.markdown("**How the model did on this file** (this file includes the true fraud labels)")
+            res1, res2, res3 = st.columns(3)
+            res1.metric("Actual fraud in file", actual_fraud)
+            res2.metric("Fraud caught", f"{caught} of {actual_fraud}")
+            res3.metric("False alarms", false_alarms)
 
-        if len(ml_flagged) > 20:
-            st.caption(f"Showing first 20 of {len(ml_flagged)} flagged transactions. Full data available in the table below.")
+        if len(ml_flagged) == 0:
+            st.info("No transactions are flagged at this threshold. Lower the slider to flag more.")
+        else:
+            st.write("Transactions flagged by the ML model (highest fraud probability first):")
 
-        display_columns = ["Amount", "ml_fraud_probability", "ml_explanation"]
-        styled_ml = ml_flagged[display_columns].style.map(highlight_fraud_prob, subset=["ml_fraud_probability"])
-        st.dataframe(styled_ml, use_container_width=True)
+            for idx, row in ml_flagged.head(20).iterrows():
+                with st.container(border=True):
+                    st.write(f"**Transaction (row {idx})** — Fraud probability: {row['ml_fraud_probability']:.1%}")
+                    st.write(row["ml_explanation"])
+
+            if len(ml_flagged) > 20:
+                st.caption(f"Showing the top 20 of {len(ml_flagged)} flagged transactions as cards. The table below lists up to 1,000.")
+
+            display_columns = ["Amount", "ml_fraud_probability", "ml_explanation"]
+            styled_ml = ml_flagged[display_columns].head(1000).style.map(
+                highlight_fraud_prob, subset=["ml_fraud_probability"]
+            )
+            st.dataframe(styled_ml, use_container_width=True)
 
     else:
-        st.info("Upload a file with the real dataset's columns (Time, V1–V28, Amount) to run ML-based detection. The current data uses a different format, so only rule-based detection applies in this tab.")
+        st.info("This file doesn't have the columns the ML model needs (Time, V1–V28, Amount). Download the ML demo sample from the sidebar, or click 'Try ML demo data' above.")
+        
